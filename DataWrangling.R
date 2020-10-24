@@ -20,6 +20,7 @@ library(ggmap)
 library(shadowtext)
 library(directlabels)
 library(ggridges)
+library(maptools)
 
 # Changing away from scientific notation
 options(scipen = 999)
@@ -80,10 +81,15 @@ multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
 nytstateurl="https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-states.csv"
 ctptesturl="https://covidtracking.com/api/v1/states/daily.csv"
 nytstateliveurl="https://raw.githubusercontent.com/nytimes/covid-19-data/master/live/us-states.csv"
+stateurl="https://raw.githubusercontent.com/BGregory98/COVIDVisuals/master/states_regions.csv"
+usapopurl="https://raw.githubusercontent.com/BGregory98/COVIDVisuals/master/uspopdata2.csv"
 
+# Load in states and regions
+states_regions <- read.csv(url(stateurl))
 predata<-read.csv(url(nytstateurl))
 #livepredata<-read.csv(url(nytstateliveurl))
-popdata<-read.csv("C:/Users/benpg/Desktop/R_Covid/uspopdata2.csv")
+#popdata<-read.csv("C:/Users/benpg/Desktop/R_Covid/uspopdata2.csv")
+popdata <- read.csv(url(usapopurl)) #%>% filter(STATE != 0)
 testpredata <- read.csv(url(ctptesturl))
 
 #Changing the name of pop in popdata
@@ -182,11 +188,11 @@ state_data <- state_data %>%
   filter(state_abs != 'PR') %>%
   filter(state_abs != 'GU')
 
-# Load in states and regions
-states_regions <- read.csv('C:/Users/benpg/Desktop/R_Covid/states_regions.csv')
 
 # Add regions into state_data
 state_data <- full_join(state_data, states_regions, by=c("state_abs"))
+
+#need region and sub region
 
 state_data <- state_data %>%
   select(date, state, state_abs, region, subregion, pop, fips, cases, deaths, tests, hospitalizedCurrently, hospitalizedCumulative)
@@ -421,7 +427,10 @@ state_data_summary <- state_data_summary %>%
 #qplot(data = state_data_summary, x = total_tests_10k)
 
 # Making State Center Data
-prestatecenters <- read.csv("C:/Users/benpg/Desktop/R_Covid/state_centers.csv")
+#prestatecenters <- read.csv("C:/Users/benpg/Desktop/R_Covid/state_centers.csv")
+statecentersurl="https://raw.githubusercontent.com/BGregory98/COVIDVisuals/master/state_centers.csv"
+prestatecenters <- read.csv(url(statecentersurl))
+
 prestatecenters$lat <- sub("(.*) (.*)", "\\1", prestatecenters$coords)
 prestatecenters$lon <- sub("(.*) (.*)", "\\2", prestatecenters$coords)
 prestatecenters$coords <- NULL
@@ -438,9 +447,27 @@ state_centers <- state_centers %>%
   select(lon, lat, state_abs)
 
 state_centers <- usmap_transform(state_centers)
-state_centers <- full_join(state_centers, states_abs, by = 'state_abs')
-states_area <- read.csv("C:/Users/benpg/Desktop/R_Covid/states_area.csv")
+state_centers <- full_join(state_centers, states_abs, by = 'state_abs') # state_abs isn't a table in this code!!
+
+
+stateareasurl="https://raw.githubusercontent.com/BGregory98/COVIDVisuals/master/states_area.csv"
+states_area <- read.csv(url(stateareasurl))
 state_centers <- full_join(state_centers, states_area, by = 'state_abs')
+
+
+##### state_abs ####
+# this table isn't built anywhere so i've placed it here
+# needs to contain state and state_abs
+
+states_abs <- 
+  state_data_summary %>%
+  select("state","state_abs")
+
+states_abs <- distinct(states_abs)
+
+
+
+
 
 #### COUNTY DATA ####
 
@@ -449,10 +476,10 @@ nytcountyurl = "https://raw.githubusercontent.com/nytimes/covid-19-data/master/u
 nytcountyliveurl = "https://raw.githubusercontent.com/nytimes/covid-19-data/master/live/us-counties.csv"
 predata<-read.csv(url(nytcountyurl))
 #livepredata<-read.csv(url(nytcountyliveurl))
-popdata<-read.csv("C:/Users/benpg/Desktop/R_Covid/co-est2019-alldata.csv")
-csadata <- read.csv("C:/Users/benpg/Desktop/R_Covid/list1_2020.csv")
-addcountydata <- read.csv("C:/Users/benpg/Desktop/R_Covid/additional_county_data.csv")
-ruralurbancodes <- read.csv("C:/Users/benpg/Desktop/R_Covid/ruralurbancodes2013.csv")
+popdata<-read.csv(url("https://raw.githubusercontent.com/BGregory98/COVIDVisuals/master/co-est2019-alldata.csv"))
+csadata <- read.csv(url("https://raw.githubusercontent.com/BGregory98/COVIDVisuals/master/list1_2020.csv"))
+addcountydata <- read.csv(url("https://raw.githubusercontent.com/BGregory98/COVIDVisuals/master/additional_county_data.csv"))
+ruralurbancodes <- read.csv(url("https://raw.githubusercontent.com/BGregory98/COVIDVisuals/master/ruralurbancodes2013.csv"))
 
 #Add live county data to bottom of historical county data
 #livepredata <- livepredata %>%
@@ -617,7 +644,10 @@ cbsa_data <- full_join(cbsa_data, csapopdata, by = 'cbsa')
 cbsa_data$state_abs <- sub(".*, (.{2}).*", "\\1", cbsa_data$cbsa)
 cbsa_data$cbsa_short <- sub("([a-z]*)[-,/].*", "\\1", cbsa_data$cbsa)
 cbsa_data$cbsa_short <- paste0(cbsa_data$cbsa_short, ', ', cbsa_data$state_abs)
-cbsa_data <- full_join(cbsa_data, states_regions, by = 'state_abs')
+
+states_regions_temp <- states_regions %>% select ("region","subregion","state_abs")
+
+cbsa_data <- full_join(cbsa_data, states_regions_temp, by = 'state_abs')
 cbsa_data <- full_join(cbsa_data, states_abs, by = 'state_abs')
 
 # Creating Metro Area data
@@ -899,7 +929,9 @@ max_county_data$how_long_ago_class2 <- cut(max_county_data$how_long_ago,
 county_data_summary <- full_join(county_data_summary, max_county_data, by = c('state', 'county', 'fips'))
 
 #county_data_summary <- full_join(county_data_summary, county_politics_data, by = 'fips')
-county_data <- full_join(county_data, county_politics_data, by = 'fips')
+
+
+######county_data <- full_join(county_data, county_politics_data, by = 'fips')
 
 
 #str(county_politics_data)
@@ -949,3 +981,4 @@ lat <- 37.373548
 date <- 'Mean Center of\nUS Population'
 pop_center <- data.frame(lon, lat, date)
 pop_center <- usmap_transform(pop_center)
+
